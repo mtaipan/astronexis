@@ -1,0 +1,43 @@
+services:
+  db:
+    image: postgres:16.10-alpine
+    environment:
+      POSTGRES_DB: ${DB_NAME:-server_site}
+      POSTGRES_USER: ${DB_USERNAME:-server_site}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?set DB_PASSWORD in .env}
+    volumes:
+      - server_site_db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME:-server_site} -d ${DB_NAME:-server_site}"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+  site:
+    build: .
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      TZ: Europe/Moscow
+      DB_URL: jdbc:postgresql://db:5432/${DB_NAME:-server_site}
+      DB_USERNAME: ${DB_USERNAME:-server_site}
+      DB_PASSWORD: ${DB_PASSWORD:?set DB_PASSWORD in .env}
+      YOOKASSA_WEBHOOK_TOKEN: ${YOOKASSA_WEBHOOK_TOKEN:-}
+      YOOKASSA_SHOP_ID: ${YOOKASSA_SHOP_ID:-}
+      YOOKASSA_SECRET_KEY: ${YOOKASSA_SECRET_KEY:-}
+      PAYEE_NAME: ${PAYEE_NAME:-}
+      PAYEE_INN: ${PAYEE_INN:-}
+      OFFER_PUBLISHED_AT: ${OFFER_PUBLISHED_AT:-}
+      RCON_ENABLED: ${RCON_ENABLED:-false}
+      RCON_HOST: ${RCON_HOST:-127.0.0.1}
+      RCON_PORT: ${RCON_PORT:-25575}
+      RCON_PASSWORD: ${RCON_PASSWORD:-}
+      VIP_GROUP: ${VIP_GROUP:-VIP}
+      VIP_DURATION_DAYS: ${VIP_DURATION_DAYS:-30}
+    ports:
+      - "8083:8080"
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  server_site_db:

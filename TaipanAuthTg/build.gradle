@@ -1,0 +1,45 @@
+plugins {
+    id 'java'
+    id 'com.github.johnrengelman.shadow' version '8.1.1'
+}
+
+group = 'dev.taipan'
+version = '0.0.1'
+
+java {
+    toolchain { languageVersion = JavaLanguageVersion.of(21) }
+}
+
+repositories {
+    mavenCentral()
+    maven { url = "https://repo.papermc.io/repository/maven-public/" }
+}
+
+dependencies {
+    compileOnly "io.papermc.paper:paper-api:1.21.11-R0.1-SNAPSHOT"
+    compileOnly files("libs/AuthMe-5.7.0-FORK-Universal.jar")
+
+    // Floodgate API + Forms: берём локально, без интернета
+    // Положи jar сюда: libs/floodgate.jar
+    compileOnly files("libs/floodgate-spigot.jar")
+
+    // Если у тебя cumulus отдельным jar (не всегда нужно) — положи: libs/cumulus.jar
+    // compileOnly files("libs/cumulus.jar")
+
+    implementation "com.zaxxer:HikariCP:5.1.0"
+    implementation "org.postgresql:postgresql:42.7.4"
+    implementation "org.yaml:snakeyaml:2.2"
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+    options.release.set(21)
+}
+
+tasks.shadowJar {
+    archiveClassifier.set("")
+    mergeServiceFiles()
+}
+
+tasks.jar { enabled = false }
+tasks.build { dependsOn tasks.shadowJar }

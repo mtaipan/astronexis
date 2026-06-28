@@ -1,0 +1,10 @@
+site:
+  base-url: "https://astronexis.site"
+  title: "Astronexis"
+  support-telegram: "@astronexis_bot"
+  support-email: "support@astronexis.site"
+  # Реквизиты плательщика (ПДн) — из ENV, чтобы не хранить в репозитории.
+  payee-type: "${PAYEE_TYPE:Самозанятый (НПД)}"
+  payee-name: "${PAYEE_NAME:}"
+  payee-inn: "${PAYEE_INN:}"
+  offer-published-at: "${OFFER_PUBLISHED_AT:}"

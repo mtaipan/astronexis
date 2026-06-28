@@ -1,0 +1,47 @@
+# ===== Astronexis root .gitignore =====
+
+# --- OS / editor junk ---
+.DS_Store
+*Zone.Identifier
+Thumbs.db
+*.swp
+*~
+
+# --- IDE ---
+.idea/
+*.iml
+*.iws
+*.ipr
+.vscode/
+
+# --- Secrets (NEVER commit) ---
+.env
+.env.*
+!.env.example
+**/config.yaml
+!**/config.yaml.example
+**/application-local.properties
+**/application-secret.properties
+
+# --- Java / Gradle ---
+.gradle/
+build/
+!gradle/wrapper/gradle-wrapper.jar
+
+# --- Java / Maven ---
+target/
+.mvn/wrapper/maven-wrapper.jar
+
+# --- Python ---
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+
+# --- Runtime data ---
+*.log
+bindings.yml
+tg_state.yml
+tg_bans.yml

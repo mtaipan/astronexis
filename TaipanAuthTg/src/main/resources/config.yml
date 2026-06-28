@@ -1,0 +1,25 @@
+storage:
+  type: postgres   # yaml | postgres
+
+telegram:
+  botToken: "PUT_TOKEN_HERE"
+  messagePrefix: "[TaipanAuth]"
+
+security:
+  codeTtlSeconds: 120
+  allowBypassPermission: false
+  bypassPermissionNode: "taipan.authtg.bypass"
+  trustTtlSeconds: 21600      # 6 часов
+  trustBind: "ip-subnet"      # none | ip | ip-subnet
+  trustSubnetV4: 24           # только для ip-subnet
+
+# Реальные значения задаются в plugins/TaipanAuthTg/config.yml на сервере (не в репозитории).
+postgres:
+  host: "127.0.0.1"
+  port: 15432
+  database: "tgbot"
+  user: "tgbot"
+  password: "CHANGE_ME"
+  poolSize: 3
+  cacheTtlSeconds: 10
+

@@ -1,0 +1,80 @@
+menu:
+  title-main-java: "§0Menu"
+  title-main-bedrock: "§0Menu"
+  title-help-java: "§0Help"
+  title-help-bedrock: "§0Help"
+  title-help-privates: "§0Claims"
+  title-help-commands: "§0Commands"
+
+  item-survival: "§aSurvival"
+  item-survival-lore-1: "§7Teleport to the last survival location"
+  item-survival-lore-2: "§8(or spawn if no data exists)"
+
+  item-hub: "§bHub"
+  item-hub-lore-1: "§7Teleport to hub"
+
+  item-help: "§eHelp"
+  item-help-lore-1: "§7Claims, commands, info"
+
+  item-privates: "§eClaims"
+  item-privates-lore-1: "§7WorldGuard + WorldEdit"
+
+  item-commands: "§eCommands"
+  item-commands-lore-1: "§7Basic server commands"
+
+  item-show-chat: "§eShow in chat"
+  item-show-chat-lore-1: "§7Send help to chat"
+
+  item-back: "§aBack"
+  item-back-lore-1: "§7Go back"
+
+  item-close: "§cClose"
+  item-close-lore-1: "§7Close menu"
+
+message:
+  teleported-survival-last: "§aTeleported to survival (last location)."
+  teleported-survival-spawn: "§aTeleported to survival (spawn)."
+  teleported-hub: "§bTeleported to hub."
+  survival-world-not-found: "§cSurvival world not found."
+  hub-world-not-found: "§cHub world §f%world%§c not found."
+  player-only: "§cPlayers only."
+  no-permission: "§cNo permission."
+  menu-cooldown: "§7Not so fast."
+  floodgate-detected: "§7Bedrock client detected."
+  module-enabled: "Module enabled: %module%"
+  module-disabled: "Module disabled: %module%"
+
+help:
+  privates:
+    - "§e§lClaims (WorldGuard + WorldEdit)"
+    - "§7(1) Region selection (WorldEdit):"
+    - "§f//wand §7— selection axe"
+    - "§7Left click — pos1, Right click — pos2"
+    - "§7(2) Create claim:"
+    - "§f/rg claim <name>"
+    - "§7(3) Info/list:"
+    - "§f/rg info <name>"
+    - "§f/rg list"
+    - "§7(4) Add/remove people:"
+    - "§f/rg addmember <name> <nick>"
+    - "§f/rg removemember <name> <nick>"
+    - "§f/rg addowner <name> <nick>"
+    - "§f/rg removeowner <name> <nick>"
+    - "§7(5) Delete claim:"
+    - "§f/rg remove <name>"
+    - "§7Tip: use names without spaces."
+
+  commands:
+    - "§e§lServer Commands (basic)"
+    - "§7Menu:"
+    - "§f/menu"
+    - "§7Homes/tp:"
+    - "§f/sethome"
+    - "§f/home"
+    - "§f/spawn"
+    - "§f/tpa <nick>"
+    - "§f/tpaccept"
+    - "§f/tpdeny"
+    - "§7Worlds:"
+    - "§f/mv list"
+    - "§f/mv tp <world>"

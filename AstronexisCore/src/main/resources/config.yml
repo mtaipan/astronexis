@@ -1,0 +1,37 @@
+locale:
+  default: "ru"
+  perPlayer: false
+
+modules:
+  menu: true
+
+menu:
+  clickCooldownMs: 800
+
+worlds:
+  hub: "hub"
+  survivalFallback: "world"
+  survivalWorlds:
+    - "world"
+    - "world_nether"
+    - "world_the_end"
+
+compass:
+  enabled: true
+  slot: 0
+  onlyInHub: true
+  name: "&bМеню"
+  lore:
+    - "&7ПКМ — открыть меню"
+
+actionbar:
+  enabled: true
+  text: "&dmc.astronexis.site"
+  intervalTicks: 40
+  enabledForJava: true
+  enabledForBedrock: true
+  worlds:
+    - "hub"
+    - "world"
+    - "world_nether"
+    - "world_the_end"

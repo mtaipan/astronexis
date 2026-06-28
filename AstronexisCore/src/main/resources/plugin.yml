@@ -1,0 +1,16 @@
+name: AstronexisCore
+version: 0.0.1
+main: dev.taipan.astronexis.core.AstronexisCorePlugin
+api-version: "1.21"
+
+commands:
+  menu:
+    description: Open Astronexis menu
+    usage: /menu
+    permission: astronexis.menu
+
+permissions:
+  astronexis.menu:
+    default: true
+  astronexis.admin:
+    default: op

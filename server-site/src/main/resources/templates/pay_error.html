@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="ru" xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{fragments/layout :: layout('Ошибка оплаты — Astronexis', 'home', ~{::content})}">
+
+<div th:fragment="content">
+    <div class="card card-glass">
+        <div class="card-body p-4 p-lg-5">
+            <h1 class="h3 mb-2">Не удалось создать платёж</h1>
+
+            <div class="mt-3">
+                <div class="alert alert-danger alert-soft"
+                     th:text="${error} ?: 'Произошла ошибка. Попробуй ещё раз или обратись в поддержку.'">
+                    Произошла ошибка.
+                </div>
+            </div>
+
+            <div class="mt-4 d-flex gap-2 flex-wrap">
+                <a class="btn btn-primary btn-soft" th:href="@{/}">На главную</a>
+                <a class="btn btn-outline-light btn-soft" th:href="@{/contacts}">Поддержка</a>
+            </div>
+        </div>
+    </div>
+</div>
+</html>

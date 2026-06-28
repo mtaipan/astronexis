@@ -1,0 +1,181 @@
+:root{
+  --bg0:#07090d;
+  --bg1:#0b1020;
+  --glass: rgba(255,255,255,.06);
+  --glass2: rgba(255,255,255,.09);
+  --stroke: rgba(255,255,255,.10);
+  --stroke2: rgba(255,255,255,.14);
+  --text: rgba(255,255,255,.92);
+  --muted: rgba(255,255,255,.65);
+  --muted2: rgba(255,255,255,.50);
+
+  --accent: #ff4a1c;
+  --accent2:#b31200;
+
+  --radius: 18px;
+  --shadow: 0 10px 35px rgba(0,0,0,.45);
+}
+
+html, body{
+  height: 100%;
+}
+
+body{
+  background: radial-gradient(1200px 600px at 55% 22%, rgba(255,74,28,.18), transparent 60%),
+              radial-gradient(900px 500px at 30% 0%, rgba(90,120,255,.10), transparent 55%),
+              linear-gradient(180deg, var(--bg0) 0%, var(--bg1) 100%);
+  color: var(--text);
+}
+
+.sticky-top-nav{
+  position: sticky;
+  top: 14px;
+  z-index: 1020;
+}
+
+/* мягкий слой-дымка */
+.bg-ambient{
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(900px 500px at 50% 25%, rgba(255,74,28,.10), transparent 60%),
+    radial-gradient(1200px 800px at 20% 80%, rgba(120,200,255,.07), transparent 65%);
+  filter: blur(0px);
+  z-index: -1;
+}
+
+a{
+  text-decoration: none;
+}
+
+.link-light{
+  text-decoration: none;
+}
+
+.kbd{
+  padding: .15rem .35rem;
+  border-radius: .5rem;
+  border: 1px solid var(--stroke2);
+  background: rgba(255,255,255,.06);
+  color: rgba(255,255,255,.85);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  font-size: .85em;
+}
+
+/* Navbar glass */
+.glass-nav{
+  backdrop-filter: blur(14px);
+  background: rgba(10,12,18,.62);
+  border: 1px solid rgba(255,255,255,.10);
+  box-shadow: var(--shadow);
+}
+
+.navbar .nav-link{
+  color: rgba(255,255,255,.70);
+  border-radius: 14px;
+  padding: .5rem .75rem;
+  transition: all .15s ease;
+}
+
+.navbar .nav-link:hover{
+  color: rgba(255,255,255,.92);
+  background: rgba(255,255,255,.06);
+}
+
+.navbar .nav-link.active{
+  color: rgba(255,255,255,.95);
+  background: rgba(255,255,255,.08);
+  border: 1px solid rgba(255,255,255,.10);
+}
+
+.brand-logo{
+  width: 28px;
+  height: 28px;
+  border-radius: 10px;
+  object-fit: cover;
+  box-shadow: 0 8px 20px rgba(0,0,0,.45);
+}
+
+/* Cards */
+.card-glass{
+  border: 1px solid rgba(255,255,255,.10);
+  background: linear-gradient(180deg, rgba(255,255,255,.07), rgba(255,255,255,.04));
+  backdrop-filter: blur(16px);
+  box-shadow: var(--shadow);
+  border-radius: 22px;
+}
+
+.hint-soft{
+  border: 1px solid rgba(255,255,255,.10);
+  background: rgba(255,255,255,.05);
+  box-shadow: 0 10px 30px rgba(0,0,0,.35);
+}
+
+.alert-soft{
+  border-radius: 18px;
+  border: 1px solid rgba(255,255,255,.10);
+  background: rgba(255,255,255,.06);
+}
+
+.btn-soft{
+  border-radius: 16px;
+}
+
+.btn-primary{
+  background: linear-gradient(180deg, rgba(255,74,28,.95), rgba(179,18,0,.95));
+  border: 1px solid rgba(255,74,28,.45);
+  box-shadow: 0 10px 25px rgba(255,74,28,.15);
+}
+
+.btn-primary:hover{
+  filter: brightness(1.05);
+}
+
+.btn-outline-light{
+  border-color: rgba(255,255,255,.16);
+  color: rgba(255,255,255,.82);
+}
+
+.btn-outline-light:hover{
+  background: rgba(255,255,255,.08);
+  border-color: rgba(255,255,255,.22);
+  color: rgba(255,255,255,.92);
+}
+
+.form-control, .form-select{
+  border-radius: 16px;
+  border: 1px solid rgba(255,255,255,.12);
+  background: rgba(5,6,10,.35);
+  color: rgba(255,255,255,.90);
+}
+
+.form-control:focus, .form-select:focus{
+  border-color: rgba(255,74,28,.45);
+  box-shadow: 0 0 0 .25rem rgba(255,74,28,.15);
+  background: rgba(5,6,10,.45);
+  color: rgba(255,255,255,.95);
+}
+
+.form-text{
+  color: rgba(255,255,255,.55) !important;
+}
+
+.text-secondary{
+  color: rgba(255,255,255,.62) !important;
+}
+
+.page-hero{
+  padding: 18px 18px;
+  border-radius: 22px;
+  border: 1px solid rgba(255,255,255,.10);
+  background: radial-gradient(800px 250px at 50% 0%, rgba(255,74,28,.15), transparent 60%),
+              rgba(255,255,255,.04);
+  backdrop-filter: blur(14px);
+  box-shadow: var(--shadow);
+}
+
+.legal-text p{
+  margin-bottom: .65rem;
+  line-height: 1.55;
+}

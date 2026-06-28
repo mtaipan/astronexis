@@ -1,0 +1,54 @@
+<nav th:fragment="navbar(active)"
+     class="navbar navbar-expand-lg glass-nav rounded-4 px-3 py-2 sticky-top-nav">
+    <div class="container-fluid px-0">
+        <a class="navbar-brand d-flex align-items-center gap-2" th:href="@{/}">
+            <img class="brand-logo" th:src="@{/img/logo.png}" alt="Astronexis logo">
+            <span class="fw-semibold" th:text="${site.title}">Astronexis</span>
+        </a>
+
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#nav"
+                aria-controls="nav" aria-expanded="false" aria-label="Toggle navigation">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+
+        <div class="collapse navbar-collapse" id="nav">
+            <ul class="navbar-nav ms-auto gap-lg-2">
+                <li class="nav-item">
+                    <a class="nav-link"
+                       th:classappend="${active=='home'} ? ' active' : ''"
+                       th:href="@{/}">
+                        Платежи
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link"
+                       th:classappend="${active=='delivery'} ? ' active' : ''"
+                       th:href="@{/delivery}">
+                        Получение
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link"
+                       th:classappend="${active=='offer'} ? ' active' : ''"
+                       th:href="@{/offer}">
+                        Оферта
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link"
+                       th:classappend="${active=='privacy'} ? ' active' : ''"
+                       th:href="@{/privacy}">
+                        Конфиденциальность
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link"
+                       th:classappend="${active=='contacts'} ? ' active' : ''"
+                       th:href="@{/contacts}">
+                        Контакты
+                    </a>
+                </li>
+            </ul>
+        </div>
+    </div>
+</nav>

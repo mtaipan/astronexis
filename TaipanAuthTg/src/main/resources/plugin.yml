@@ -1,0 +1,26 @@
+name: TaipanAuthTg
+version: 0.0.1
+main: dev.taipan.auth_tg.TaipanAuthTgPlugin
+api-version: "1.21"
+depend:
+  - AuthMe
+softdepend:
+  - Floodgate
+  - Geyser-Spigot
+
+commands:
+  tgcode:
+    description: Enter telegram 2FA code
+    usage: /tgcode <code>
+  authtg:
+    description: Admin commands for TaipanAuthTg
+    usage: /authtg <subcommand>
+  auth:
+    description: Open auth UI (Bedrock forms) or show help (Java)
+    usage: /auth
+
+permissions:
+  taipan.authtg.admin:
+    default: op
+  taipan.authtg.bypass:
+    default: false

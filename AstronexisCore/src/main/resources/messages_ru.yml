@@ -1,0 +1,80 @@
+menu:
+  title-main-java: "§0Меню"
+  title-main-bedrock: "§0Меню"
+  title-help-java: "§0Справка"
+  title-help-bedrock: "§0Справка"
+  title-help-privates: "§0Приваты"
+  title-help-commands: "§0Команды"
+
+  item-survival: "§aВыживание"
+  item-survival-lore-1: "§7В последнюю точку в survival"
+  item-survival-lore-2: "§8(или spawn, если нет данных)"
+
+  item-hub: "§bХаб"
+  item-hub-lore-1: "§7Телепорт в hub"
+
+  item-help: "§eСправка"
+  item-help-lore-1: "§7Приваты, команды, информация"
+
+  item-privates: "§eПриваты"
+  item-privates-lore-1: "§7WorldGuard + WorldEdit"
+
+  item-commands: "§eКоманды"
+  item-commands-lore-1: "§7Базовые команды сервера"
+
+  item-show-chat: "§eПоказать в чат"
+  item-show-chat-lore-1: "§7Отправить справку в чат"
+
+  item-back: "§aНазад"
+  item-back-lore-1: "§7Вернуться назад"
+
+  item-close: "§cЗакрыть"
+  item-close-lore-1: "§7Закрыть меню"
+
+message:
+  teleported-survival-last: "§aТелепорт в выживание (последняя точка)."
+  teleported-survival-spawn: "§aТелепорт в выживание (spawn)."
+  teleported-hub: "§bТелепорт в хаб."
+  survival-world-not-found: "§cМир выживания не найден."
+  hub-world-not-found: "§cМир хаба §f%world%§c не найден."
+  player-only: "§cКоманда только для игрока."
+  no-permission: "§cНет прав."
+  menu-cooldown: "§7Не так быстро."
+  floodgate-detected: "§7Обнаружен Bedrock-клиент."
+  module-enabled: "Модуль включен: %module%"
+  module-disabled: "Модуль выключен: %module%"
+
+help:
+  privates:
+    - "§e§lПриваты (WorldGuard + WorldEdit)"
+    - "§7(1) Выделение региона (WorldEdit):"
+    - "§f//wand §7— топорик выделения"
+    - "§7ЛКМ — pos1, ПКМ — pos2"
+    - "§7(2) Создать приват:"
+    - "§f/rg claim <name>"
+    - "§7(3) Инфа/список:"
+    - "§f/rg info <name>"
+    - "§f/rg list"
+    - "§7(4) Добавить/убрать людей:"
+    - "§f/rg addmember <name> <nick>"
+    - "§f/rg removemember <name> <nick>"
+    - "§f/rg addowner <name> <nick>"
+    - "§f/rg removeowner <name> <nick>"
+    - "§7(5) Удалить приват:"
+    - "§f/rg remove <name>"
+    - "§7Подсказка: названия без пробелов, лучше латиницей."
+
+  commands:
+    - "§e§lКоманды сервера (база)"
+    - "§7Меню:"
+    - "§f/menu"
+    - "§7Хом/тп:"
+    - "§f/sethome"
+    - "§f/home"
+    - "§f/spawn"
+    - "§f/tpa <nick>"
+    - "§f/tpaccept"
+    - "§f/tpdeny"
+    - "§7Миры:"
+    - "§f/mv list"
+    - "§f/mv tp <world>"

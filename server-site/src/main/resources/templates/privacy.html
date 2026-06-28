@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="ru" xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{fragments/layout :: layout('Конфиденциальность — Astronexis', 'privacy', ~{::content})}">
+
+<div th:fragment="content">
+    <div class="card card-glass">
+        <div class="card-body p-4 p-lg-5">
+            <h1 class="h3 mb-3">Политика конфиденциальности</h1>
+
+            <div class="text-secondary">
+                <p>
+                    Оператор персональных данных:
+                    <span class="text-white" th:text="${site.payeeName}">ФИО плательщика</span>,
+                    ИНН <span class="text-white" th:text="${site.payeeInn}">000000000000</span>,
+                    email:
+                    <a class="link-light" th:href="'mailto:' + ${site.supportEmail}" th:text="${site.supportEmail}">
+                        support@astronexis.site
+                    </a>.
+                </p>
+
+                <h2 class="h5 text-white mt-4">Какие данные мы обрабатываем</h2>
+                <ul>
+                    <li>игровой ник и платформа (Java/Bedrock)</li>
+                    <li>данные о платеже (через ЮKassa)</li>
+                    <li>технические данные соединения (например IP)</li>
+                    <li>email — если ты сам его отправишь при обращении в поддержку</li>
+                </ul>
+
+                <h2 class="h5 text-white mt-4">Зачем</h2>
+                <ul>
+                    <li>провести платёж и выдать услугу</li>
+                    <li>поддержка и разбор спорных ситуаций</li>
+                    <li>выполнение требований законодательства РФ</li>
+                </ul>
+
+                <h2 class="h5 text-white mt-4">Как запросить удаление/изменение</h2>
+                <p class="mb-0">
+                    Напиши на
+                    <a class="link-light" th:href="'mailto:' + ${site.supportEmail}" th:text="${site.supportEmail}">
+                        support@astronexis.site
+                    </a>.
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+</html>

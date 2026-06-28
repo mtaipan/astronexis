@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="ru" xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{fragments/layout :: layout('Платежи — Astronexis', 'home', ~{::content})}">
+
+<div th:fragment="content">
+    <div class="page-hero">
+        <div class="d-flex align-items-center justify-content-between flex-wrap gap-3">
+            <div>
+                <h1 class="h3 mb-1">Платежи</h1>
+                <div class="text-secondary small">
+                    Страница оплаты доната / подписки. Статус оплаты приходит после возврата из ЮKassa.
+                </div>
+            </div>
+            <div class="d-flex gap-2">
+                <a class="btn btn-outline-light btn-soft" th:href="@{/delivery}">Как получить</a>
+                <a class="btn btn-outline-light btn-soft" th:href="@{/contacts}">Поддержка</a>
+            </div>
+        </div>
+    </div>
+
+    <div class="card card-glass mt-3">
+        <div class="card-body p-4 p-lg-5">
+            <h2 class="h5 mb-3">Оплата</h2>
+
+            <form class="row g-3" method="post" th:action="@{/pay/create}">
+                <div class="col-12 col-lg-6">
+                    <label class="form-label">Ник</label>
+                    <input class="form-control" name="nick" placeholder="YourNick" required minlength="3" maxlength="32">
+                    <div class="form-text text-secondary">
+                        Для Bedrock можешь писать обычный ник — префикс <span class="kbd">bed_</span> добавится автоматически (если у тебя так задумано).
+                    </div>
+                </div>
+
+                <div class="col-12 col-lg-3">
+                    <label class="form-label">Платформа</label>
+                    <select class="form-select" name="platform" required>
+                        <option value="JAVA" selected>Java</option>
+                        <option value="BEDROCK">Bedrock</option>
+                    </select>
+                </div>
+
+                <div class="col-12 col-lg-3">
+                    <label class="form-label">Тип</label>
+                    <select class="form-select" name="type" required>
+                        <option value="DONATION" selected>Пожертвование</option>
+                        <option value="VIP">VIP (30 дней)</option>
+                    </select>
+                </div>
+
+                <div class="col-12 col-lg-4">
+                    <label class="form-label">Сумма (если пожертвование)</label>
+                    <input class="form-control" name="amount" type="number" min="10" step="1" placeholder="100">
+                    <div class="form-text text-secondary">Для VIP сумма фиксированная.</div>
+                </div>
+
+                <div class="col-12">
+                    <button class="btn btn-primary btn-soft" type="submit">
+                        Перейти к оплате
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+</html>
