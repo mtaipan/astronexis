@@ -13,6 +13,25 @@
 
 ---
 
+## Серверные плагины (для Java-части)
+
+Проверено по `build.gradle` и `plugin.yml` — astronexis-плагинам нужно немного:
+
+| Плагин | Зачем | Где задействован |
+|---|---|---|
+| **Paper** 1.21.x | платформа сервера | оба плагина (`compileOnly paper-api` в `build.gradle`) |
+| **Geyser + Floodgate** | поддержка Bedrock-игроков | `TaipanAuthTg` рендерит формы авторизации для Bedrock через Floodgate API (`build.gradle` → `libs/floodgate-spigot.jar`) |
+| **AuthMe** | базовая авторизация | `TaipanAuthTg` надстраивает 2FA поверх AuthMe (`AuthMePoller` опрашивает состояние логина) |
+
+`AstronexisCore` плагинов-зависимостей **не объявляет** (только Paper; `depend`/`softdepend` в его `plugin.yml` пустые).
+
+> **Не используются сейчас** (вопреки старым черновикам архитектуры): LuckPerms, PlaceholderAPI,
+> ProtocolLib, ViaVersion/ViaBackwards, Spark, CoreProtect, LiteBans, BlueMap — в коде их нет.
+> Это **вишлист на будущее**, а не зависимости. Целевое расширение плагинов и модулей внутри
+> Core — в [ROADMAP.md](ROADMAP.md), не здесь: документируем то, что есть, отдельно от того, что планируется.
+
+---
+
 ## server-site (сайт + платежи)
 
 ### Локально
