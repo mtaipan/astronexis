@@ -7,6 +7,7 @@ import dev.taipan.auth_tg.store.TrustStore;
 import dev.taipan.auth_tg.tg.TelegramApi;
 import dev.taipan.auth_tg.util.Codes;
 import dev.taipan.auth_tg.util.Fingerprints;
+import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
@@ -31,6 +32,7 @@ import org.bukkit.util.Vector;
 
 import java.time.Instant;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -49,6 +51,13 @@ public final class GateListener implements Listener {
     private final Map<UUID, Boolean> authMeLoggedIn = new ConcurrentHashMap<>();
     private final Map<UUID, Integer> codeAttempts = new ConcurrentHashMap<>();
 
+    /**
+     * Позитивный признак пройденного второго фактора (AUTH-7): игрок попадает сюда только
+     * через валидную trust-сессию при входе или принятый /tgcode. Отсутствие записи в
+     * {@link #pending} само по себе доступ не открывает.
+     */
+    private final Set<UUID> tgVerified = ConcurrentHashMap.newKeySet();
+
     public GateListener(JavaPlugin plugin, PluginConfig cfg, BindingsStore store, TrustStore trust, TelegramApi tg) {
         this.plugin = plugin;
         this.cfg = cfg;
@@ -64,6 +73,7 @@ public final class GateListener implements Listener {
 
         if (!loggedIn) {
             pending.remove(p.getUniqueId());
+            tgVerified.remove(p.getUniqueId());
             applyFreezeState(p);
             return;
         }
@@ -73,13 +83,46 @@ public final class GateListener implements Listener {
             return;
         }
 
-        if (isTrustedNow(p)) {
-            pending.remove(p.getUniqueId());
-            applyFreezeState(p);
-            return;
-        }
+        // Пока async-проверка не завершилась, игрок не верифицирован — гейт закрыт.
+        tgVerified.remove(p.getUniqueId());
+        applyFreezeState(p);
 
-        Long chatId = store.getChatIdByNick(p.getName());
+        // AUTH-8: обращения к БД (trust-сессия, привязка Telegram) — вне тик-потока.
+        UUID id = p.getUniqueId();
+        String nick = p.getName();
+        String fpNow = Fingerprints.fingerprint(p, cfg.security().trustBind(), cfg.security().trustSubnetV4());
+        Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
+            TrustSession ts = trust.getValid(id);
+            boolean trusted = ts != null && ts.fingerprint().equals(fpNow);
+            Long chatId = trusted ? null : store.getChatIdByNick(nick);
+            Bukkit.getScheduler().runTask(plugin, () -> {
+                if (!p.isOnline() || !isAuthMeLoggedIn(p)) return;
+
+                if (trusted) {
+                    pending.remove(id);
+                    tgVerified.add(id);
+                    applyFreezeState(p);
+                    return;
+                }
+                deliverCodeOrBlock(p, chatId);
+            });
+        });
+    }
+
+    /** Запрашивает новый 2FA-код: привязку читаем async, применяем в основном потоке (AUTH-8). */
+    private void issueCode(Player p) {
+        String nick = p.getName();
+        Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
+            Long chatId = store.getChatIdByNick(nick);
+            Bukkit.getScheduler().runTask(plugin, () -> {
+                if (!p.isOnline() || !isAuthMeLoggedIn(p) || isFullyAuthorized(p)) return;
+                deliverCodeOrBlock(p, chatId);
+            });
+        });
+    }
+
+    /** Основной поток: выдаёт код по chatId или помечает игрока «нет привязки Telegram». */
+    private void deliverCodeOrBlock(Player p, Long chatId) {
         if (chatId == null) {
             p.sendMessage(ChatColor.RED + "Telegram-bot: @astronexis_bot.");
             p.sendMessage(ChatColor.RED + "Привяжи Telegram: напиши боту /bind <ник>.");
@@ -92,10 +135,16 @@ public final class GateListener implements Listener {
         String code = Codes.code6();
         Instant exp = Instant.now().plusSeconds(cfg.security().codeTtlSeconds());
         pending.put(p.getUniqueId(), PendingCode.normal(code, exp));
+        codeAttempts.remove(p.getUniqueId());
 
-        tg.sendMessage(chatId, "Код входа: " + code + " (TTL " + cfg.security().codeTtlSeconds() + "s)");
+        // AUTH-9: доставка проверяется; при сбое игроку сообщаем, а не молчим.
+        tg.sendMessage(chatId, "Код входа: " + code + " (TTL " + cfg.security().codeTtlSeconds() + "s)",
+                failedChat -> Bukkit.getScheduler().runTask(plugin, () -> {
+                    if (p.isOnline()) {
+                        p.sendMessage(ChatColor.RED + "Не удалось отправить код в Telegram. Повтори /login позже.");
+                    }
+                }));
         p.sendMessage(ChatColor.YELLOW + "Проверь Telegram @astronexis_bot. Введи: /tgcode <код> чтобы продолжить.");
-
         applyFreezeState(p);
     }
 
@@ -104,20 +153,14 @@ public final class GateListener implements Listener {
                 && p.hasPermission(cfg.security().bypassPermissionNode());
     }
 
-    private boolean isTrustedNow(Player p) {
-        TrustSession ts = trust.getValid(p.getUniqueId());
-        if (ts == null) return false;
-
-        String fpNow = Fingerprints.fingerprint(p, cfg.security().trustBind(), cfg.security().trustSubnetV4());
-        return ts.fingerprint().equals(fpNow);
-    }
-
     public boolean isAuthMeLoggedIn(Player p) {
         return authMeLoggedIn.getOrDefault(p.getUniqueId(), false);
     }
 
     public boolean isFullyAuthorized(Player p) {
-        return isAuthMeLoggedIn(p) && !isBlocked(p);
+        if (!isAuthMeLoggedIn(p)) return false;
+        if (hasBypass(p)) return true;
+        return tgVerified.contains(p.getUniqueId());
     }
 
     public boolean isBlockedNoTg(Player p) {
@@ -129,14 +172,14 @@ public final class GateListener implements Listener {
         if (hasBypass(p)) return false;
 
         PendingCode pc = pending.get(p.getUniqueId());
-        if (pc == null) return false;
+        if (pc == null) return !tgVerified.contains(p.getUniqueId());
 
         if (pc.noTgBinding || pc.locked) return true;
 
         if (Instant.now().isAfter(pc.expiresAt)) {
-            pending.remove(p.getUniqueId());
-            p.sendMessage(ChatColor.RED + "Код истёк. Перезайди или повтори /login.");
-            return false;
+            // AUTH-7: истёкший код НЕ открывает гейт — фиксируем состояние «нужен новый код».
+            pending.put(p.getUniqueId(), PendingCode.locked());
+            p.sendMessage(ChatColor.RED + "Код истёк. Повтори /login для нового кода.");
         }
         return true;
     }
@@ -148,11 +191,13 @@ public final class GateListener implements Listener {
 
     public boolean tryAcceptCode(Player p, String codeInput) {
         PendingCode pc = pending.get(p.getUniqueId());
-        if (pc == null) return true;
+        if (pc == null) return isFullyAuthorized(p);
         if (pc.noTgBinding || pc.locked) return false;
 
         if (Instant.now().isAfter(pc.expiresAt)) {
-            pending.remove(p.getUniqueId());
+            // AUTH-7: истечение кода не снимает заморозку — только фиксирует «нужен новый код».
+            pending.put(p.getUniqueId(), PendingCode.locked());
+            codeAttempts.remove(p.getUniqueId());
             applyFreezeState(p);
             return false;
         }
@@ -172,8 +217,11 @@ public final class GateListener implements Listener {
 
         String fp = Fingerprints.fingerprint(p, cfg.security().trustBind(), cfg.security().trustSubnetV4());
         Instant exp = Instant.now().plusSeconds(cfg.security().trustTtlSeconds());
-        trust.upsert(p.getUniqueId(), fp, exp);
+        UUID id = p.getUniqueId();
+        // AUTH-8: запись trust-сессии — вне основного потока; на доступ игрока она не влияет.
+        Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> trust.upsert(id, fp, exp));
 
+        tgVerified.add(p.getUniqueId());
         pending.remove(p.getUniqueId());
         codeAttempts.remove(p.getUniqueId());
         applyFreezeState(p);
@@ -232,6 +280,7 @@ public final class GateListener implements Listener {
         pending.remove(id);
         authMeLoggedIn.remove(id);
         codeAttempts.remove(id);
+        tgVerified.remove(id);
     }
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
@@ -346,7 +395,15 @@ public final class GateListener implements Listener {
 
         String msg = e.getMessage().toLowerCase();
         if (msg.startsWith("/tgcode")) return;
-        if (msg.startsWith("/login")) return;
+        if (msg.startsWith("/login")) {
+            // Игрок уже прошёл AuthMe, но код истёк/заблокирован: поллер смены состояния
+            // не увидит, поэтому новый код выдаём прямо здесь.
+            PendingCode pc = pending.get(p.getUniqueId());
+            if (isAuthMeLoggedIn(p) && pc != null && pc.locked) {
+                issueCode(p);
+            }
+            return;
+        }
         if (msg.startsWith("/register")) return;
         if (msg.startsWith("/auth")) return;
 

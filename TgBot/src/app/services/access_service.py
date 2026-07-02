@@ -34,11 +34,18 @@ class AccessService:
 
         chans = await self.channels.list(con)
         if not chans:
+            # Осознанный fail-open (BOT-9): пустой список каналов = требование
+            # подписки не настроено, доступ разрешён.
             return AccessResult(True)
 
         ok = await self.subs.is_subscribed(bot, tg_id, chans)
         if ok:
             return AccessResult(True)
+
+        if ok is None:
+            # Сбой Telegram API (BOT-9): fail-closed для доступа, но привязку НЕ удаляем —
+            # временная ошибка не должна быть разрушительной.
+            return AccessResult(False, "⚠️ Не удалось проверить подписку. Попробуй ещё раз чуть позже.")
 
         delete_on_unsub = (await self.settings.get(con, "delete_binding_on_unsub", "true")).lower() == "true"
         if delete_on_unsub:

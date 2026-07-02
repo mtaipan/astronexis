@@ -23,13 +23,48 @@ from app.bot.handlers.tickets_admin import tickets_cmd, reply_cmd, close_cmd
 from app.bot.handlers.text_router import text_router
 
 # admin
-from app.bot.handlers.admin import admin_panel
+from app.bot.handlers.admin import (
+    admin_panel,
+    channels_cmd,
+    channel_add,
+    channel_del,
+    subs_cmd,
+    ban_cmd,
+    unban_cmd,
+    price_get_cmd,
+    price_set_cmd,
+    bind_get_cmd,
+    bind_set_cmd,
+    bind_del_cmd,
+    bind_del_nick_cmd,
+    find_nick_cmd,
+    find_tg_cmd,
+    find_name_cmd,
+)
+
+# Все админ-команды из меню /admin — одним списком, чтобы регистрация циклом
+# не давала «объявлен, но не подключён» (BOT-8).
+ADMIN_COMMANDS = [
+    ("channels", channels_cmd),
+    ("channel_add", channel_add),
+    ("channel_del", channel_del),
+    ("subs", subs_cmd),
+    ("ban", ban_cmd),
+    ("unban", unban_cmd),
+    ("price_get", price_get_cmd),
+    ("price_set", price_set_cmd),
+    ("bind_get", bind_get_cmd),
+    ("bind_set", bind_set_cmd),
+    ("bind_del", bind_del_cmd),
+    ("bind_del_nick", bind_del_nick_cmd),
+    ("find_nick", find_nick_cmd),
+    ("find_tg", find_tg_cmd),
+    ("find_name", find_name_cmd),
+]
 
 
-def main():
-    cfg = load_config()
-    engine = make_engine(cfg.database_url)
-
+def build_application(cfg, engine) -> Application:
+    """Собирает Application со всеми хендлерами (без запуска polling) — тестируемо."""
     app = Application.builder().token(cfg.bot_token).build()
 
     app.bot_data["cfg"] = cfg
@@ -55,11 +90,22 @@ def main():
 
     # --- admin ---
     app.add_handler(CommandHandler("admin", admin_panel))
+    for name, handler in ADMIN_COMMANDS:
+        app.add_handler(CommandHandler(name, handler))
 
     # tickets admin
     app.add_handler(CommandHandler("tickets", tickets_cmd))
     app.add_handler(CommandHandler("reply", reply_cmd))
     app.add_handler(CommandHandler("close", close_cmd))
+
+    return app
+
+
+def main():
+    cfg = load_config()
+    engine = make_engine(cfg.database_url)
+
+    app = build_application(cfg, engine)
 
     app.run_polling(allowed_updates=["message", "callback_query"])
 

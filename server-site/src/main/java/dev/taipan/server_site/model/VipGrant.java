@@ -47,6 +47,10 @@ public class VipGrant {
     @Column(name = "created_at", nullable = false)
     private OffsetDateTime createdAt;
 
+    /** Момент захвата гранта доставщиком (status = DELIVERING), см. SITE-9. */
+    @Column(name = "claimed_at")
+    private OffsetDateTime claimedAt;
+
     @Column(name = "delivered_at")
     private OffsetDateTime deliveredAt;
 }

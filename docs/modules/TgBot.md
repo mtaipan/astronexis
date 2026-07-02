@@ -6,35 +6,38 @@ Telegram-бот проекта: привязка игрового ника к Te
 - **Стек:** Python 3.12, python-telegram-bot 21.6, SQLAlchemy 2.0 (async + asyncpg),
   Alembic, python-dotenv.
 - **Запуск:** long polling (`run_polling`).
-- **Хранилище:** PostgreSQL (async). Есть также YAML-сторы (`storage/*_yaml.py`) — legacy.
+- **Хранилище:** PostgreSQL (async). Legacy YAML-сторы удалены — единственное хранилище Postgres.
 
 ## Структура
 
 ```
 TgBot/
-├── alembic.ini, alembic/versions/   # миграции 0001..0004
-├── config.yaml                      # ⚠️ ВТОРОЙ источник конфигурации (+ реальный токен)
-├── .env                             # переменные окружения (секреты)
+├── alembic.ini, alembic/versions/   # миграции 0001..0004 (источник схемы БД)
+├── .env                             # переменные окружения (секреты; в репо — плейсхолдеры)
 ├── deploy/                          # Dockerfile, docker-compose, entrypoint
 └── src/app/
     ├── main.py                      # сборка Application, регистрация хендлеров
-    ├── core/config.py               # load_config() из ENV → AppConfig
+    │                                #   BOT-8 закрыт: админ-команды списком ADMIN_COMMANDS
+    ├── schema.sql                   # ⚠ пустой (0 байт), вводит в заблуждение — удалить (OPS-5)
+    ├── core/config.py               # load_config() из ENV → AppConfig (единственный источник)
     ├── db/
     │   ├── engine.py                # create_async_engine
     │   ├── models.py                # ORM: User, Binding, Ban, RequiredChannel, Setting, Ticket, TicketMessage
     │   └── repo/                    # репозитории (users, bindings, bans, channels, settings, tickets, ticket_messages)
     ├── services/
-    │   ├── access_service.py        # бан + подписки + upsert профиля
+    │   ├── access_service.py        # бан + подписки + upsert профиля (⚠ SEC-13: fail-open)
     │   ├── subscriptions_service.py # проверка членства в каналах
     │   ├── bindings_service.py      # строгие правила привязки ника
     │   ├── tickets_service.py       # создание тикетов
     │   └── notify_service.py        # уведомления админам с тумблерами
-    ├── bot/
-    │   ├── middlewares/guard.py     # access-check + upsert профиля перед хендлером
-    │   ├── handlers/                # start, menu, bind, support, support_text, tickets_admin, admin, admin_notify
-    │   └── texts/ru.py              # тексты интерфейса
-    └── storage/                     # bans_yaml, bindings_yaml, state_yaml (legacy)
+    └── bot/
+        ├── middlewares/guard.py     # @require_access: access-check + upsert профиля перед хендлером
+        ├── handlers/                # start, menu, bind, support, support_text, text_router, tickets_admin, admin, admin_notify
+        └── texts/ru.py              # тексты интерфейса
 ```
+
+> **Устарело в прошлой версии:** `config.yaml` (второй источник конфига) и пакет `storage/*_yaml.py`
+> (legacy YAML-сторы) **удалены** — их больше нет. Конфигурация читается только из ENV.
 
 ## Модель данных (ORM, `db/models.py`)
 
@@ -52,10 +55,12 @@ TgBot/
 
 ## Ключевые потоки
 
-### guard (middleware)
-[bot/middlewares/guard.py](../../TgBot/src/app/bot/middlewares/guard.py): на каждый апдейт —
-`AccessService.check` (бан? подписки?) + `_upsert_user_profile` (fail-safe, молча пропускает,
-если колонок ещё нет). Возвращает `True/False`, хендлеры сами вызывают guard.
+### guard (декоратор `@require_access`)
+[bot/middlewares/guard.py](../../TgBot/src/app/bot/middlewares/guard.py): декоратор оборачивает
+хендлер — сначала `AccessService.check` (бан? подписки?) + `_upsert_user_profile` (fail-safe),
+и только при `True` вызывается сам хендлер. Забыть проверку в отдельном хендлере уже нельзя
+(было BOT-3, см. [ADR-5](../DECISIONS.md)). ⚠️ `AccessService` fail-open: пустой список каналов
+или сбой проверки подписки → доступ разрешается (SEC-13 / BOT-9).
 
 ### Привязка (`bind`)
 Пошаговый диалог (платформа → ник). `BindingsService.bind_strict` запрещает обычному
@@ -80,15 +85,17 @@ TgBot/
 
 | ID | Severity | Проблема |
 |---|---|---|
-| [BOT-2](../TODO.md) | 🔴 | **Два `MessageHandler` на один фильтр** `TEXT & ~COMMAND` (`bind_on_text` и `support_on_text`) в одной группе — PTB выполнит только первый, `support_on_text` никогда не сработает. Нужны разные группы или единый роутер. |
-| [SEC-2](../TODO.md) | 🔴 | Реальный bot-token и креды в `config.yaml`/`.env` |
-| [BOT-1](../TODO.md) | 🟠 | Два источника конфигурации: `core/config.py` (ENV) и `config.yaml` — расходятся. Выбрать один. |
-| [ARCH-1](../TODO.md) | 🟠 | Источник правды для `bindings` пересекается с TaipanAuthTg (Postgres vs YAML-путь в `config.yaml`) |
-| [BOT-3](../TODO.md) | 🟠 | `guard` вызывается вручную в каждом хендлере — легко забыть и оставить эндпоинт без проверки |
-| [BOT-4](../TODO.md) | 🟡 | Legacy YAML-сторы (`storage/*_yaml.py`) сосуществуют с Postgres — удалить или задокументировать |
-| [BOT-5](../TODO.md) | 🟡 | `nickchange`-хендлер закомментирован в `main.py` — доделать или убрать |
-| [BOT-6](../TODO.md) | 🟡 | Нет тестов, нет обработки сетевых ошибок Telegram в части хендлеров |
-| [BOT-7](../TODO.md) | 🟡 | `admin.py` ~400 строк — разбить по областям (channels/bans/bindings/tickets/price) |
+| [BOT-8 / SEC-9](../TODO.md) | 🔴✅ | **Админка подключена целиком:** 15 команд регистрируются списком `ADMIN_COMMANDS` циклом; smoke-тест `tests/test_admin_registration.py` сверяет меню `/admin` с реально зарегистрированными |
+| [BOT-9 / SEC-13](../TODO.md) | 🟡✅ | Политика зафиксирована и поправлена: пустой список каналов → доступ (осознанно); сбой Telegram API → отказ, но привязка **не** удаляется (`is_subscribed` различает `False`/`None`). Тесты: `tests/test_access_service.py` |
+| [BOT-2](../TODO.md) | 🟢✅ | Конфликт двух `MessageHandler` устранён: единый `text_router` разводит по `step` |
+| [SEC-2](../TODO.md) | 🟢✅ | Токен/креды вынесены из репо (в `.env` — плейсхолдер); ручное: перевыпустить токен |
+| [BOT-1](../TODO.md) | 🟢✅ | Один источник конфигурации — ENV; `config.yaml` удалён |
+| [ARCH-1 / ARCH-4](../TODO.md) | 🟠 | Таблицу `bindings` (домен бота) читает плагин авторизации сырым SQL — нет контракта |
+| [BOT-3](../TODO.md) | 🟢✅ | `@require_access` на всех хендлерах — проверку нельзя забыть ([ADR-5](../DECISIONS.md)) |
+| [BOT-4](../TODO.md) | 🟢✅ | Legacy YAML-сторы удалены |
+| [BOT-5](../TODO.md) | 🟢✅ | Закомментированный `nickchange` убран из `main.py` |
+| [BOT-6](../TODO.md) | 🟡 | Тесты появились (`tests/`: регистрация команд, политика доступа — 8 шт.); обработка сетевых ошибок Telegram в части хендлеров всё ещё не везде |
+| [BOT-7](../TODO.md) | 🟡 | `admin.py` ~380 строк — разбить по областям (channels/bans/bindings/tickets/price) |
 
 ## Как запустить
 

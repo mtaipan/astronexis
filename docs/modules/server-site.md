@@ -17,16 +17,20 @@ server-site/src/main/java/dev/taipan/server_site/
 │   ├── DonateController.java         # POST /donate, POST /vip
 │   └── YooKassaWebhookController.java# POST /yookassa/webhook
 ├── service/
-│   ├── PaymentService.java          # создание донатов и VIP, сохранение Payment
-│   └── FxService.java               # конвертация валют в RUB по фикс. курсам
+│   ├── PaymentService.java              # создание донатов и VIP, сохранение Payment
+│   ├── PaymentConfirmationService.java  # применяет статус (после проверки в API), кладёт грант в outbox
+│   ├── FulfillmentService.java          # доставка VIP через RCON (SITE-9 закрыт: атомарный захват)
+│   ├── VipGrantRetryScheduler.java      # дотягивает невыданные гранты (каждые 2 мин)
+│   └── FxService.java                   # конвертация валют в RUB по фикс. курсам
 ├── yookassa/
-│   ├── YooKassaClient.java          # REST-клиент к api.yookassa.ru/v3
+│   ├── YooKassaClient.java          # REST-клиент к api.yookassa.ru/v3 (+ getPayment для верификации)
 │   ├── CreatePaymentRequest.java
 │   └── CreatePaymentResponse.java
-├── repository/PaymentRepository.java # JPA + запросы топа донатеров
-├── model/                            # Payment, PaymentType, PaymentStatus, Platform
+├── rcon/{RconClient, RconException}.java # минимальный Source RCON поверх TCP
+├── repository/                       # PaymentRepository (+ топ донатеров), VipGrantRepository
+├── model/                            # Payment, PaymentType, PaymentStatus, Platform, VipGrant, GrantStatus
 ├── util/NickValidator.java           # валидация/нормализация ника (regex, bed_ префикс)
-└── config/                           # SiteConfig, SiteProperties, GlobalModelAttributes/Advice
+└── config/                           # SiteConfig, SiteProperties, RconProperties, GlobalModelAttributes/Advice
 
 server-site/src/main/resources/
 ├── templates/                        # Thymeleaf: index, offer, privacy, contacts, delivery, pay_return
@@ -64,12 +68,21 @@ server-site/src/main/resources/
 3. Сохранение `Payment(PENDING)`, вызов `YooKassaClient.createRedirectPayment` (Basic auth, `Idempotence-Key`).
 4. Сохранение `providerPaymentId` + `confirmationUrl`, редирект пользователя на оплату.
 
-### Webhook
+### Webhook (SEC-1 закрыт)
 `POST /yookassa/webhook?token=…` → `YooKassaWebhookController`:
-- Проверка статического токена.
-- Поиск платежа по `metadata.internal_payment_id`, fallback по `providerPaymentId`.
-- Идемпотентность (если уже `SUCCEEDED` — выходим).
-- ⚠️ Устанавливает статус **по телу запроса** (см. SEC-1).
+- Статический токен — дешёвый фильтр от спама (не граница доверия).
+- Из тела берётся **только `id`**; реальный статус/сумма/`metadata` читаются
+  `GET /v3/payments/{id}` под Basic-credentials — **источник правды — ответ API**, а не тело.
+- Сверка суммы, идемпотентность по статусу, 502 при сбое проверки (ЮKassa повторит).
+- При `SUCCEEDED` для VIP кладёт грант в `vip_grants` (outbox) и пытается доставить сразу.
+
+### Выдача VIP (SEC-3 и SITE-9 закрыты)
+`PaymentConfirmationService` (короткая транзакция) создаёт durable-грант, `FulfillmentService`
+доставляет его RCON-командой вне транзакции, `VipGrantRetryScheduler` дотягивает невыданное.
+✅ **SITE-9 закрыт:** перед RCON-вызовом грант атомарно захватывается
+(`claimForDelivery`: `UPDATE … SET status='DELIVERING' WHERE status='PENDING'`, проверка
+affected rows) — webhook и планировщик не выдадут VIP дважды; зависшие DELIVERING
+возвращаются в очередь через 10 мин. См. [SECURITY.md → SEC-10](../SECURITY.md).
 
 ### Витрина
 `GET /` → топ донатеров: `topAllTime()` и `topSince(now-30d)` (сумма `amount_rub` по нику среди `DONATION/SUCCEEDED`).
@@ -86,16 +99,18 @@ server-site/src/main/resources/
 
 | ID | Severity | Проблема |
 |---|---|---|
-| [SEC-1](../TODO.md) | 🔴 | Webhook доверяет телу запроса — нет проверки платежа в API ЮKassa |
-| [SEC-2](../TODO.md) | 🔴 | Секреты (webhook-token, пароли БД, ИНН) в ресурсах |
-| [SITE-3 / SEC-3](../TODO.md) | 🔴 | Нет фулфилмента: после оплаты VIP/донат не выдаётся в игру |
-| [SITE-1](../TODO.md) | 🟠 | `DonateController` делает `redirect:` + `getConfirmationUrl()` — при null битый редирект/NPE; нет обработки ошибок ЮKassa |
+| [SITE-9 / SEC-10](../TODO.md) | 🟠✅ | **Гонка двойной выдачи закрыта:** атомарный захват + статус `DELIVERING` (`V4`); тест на два параллельных `deliver()` → 1 RCON (`FulfillmentServiceTest`) |
+| [SEC-1](../TODO.md) | 🟢✅ | Webhook верифицирует платёж через API ЮKassa (из тела — только `id`) |
+| [SEC-2](../TODO.md) | 🟢✅ | Секреты (webhook-token, пароли БД, ИНН) → ENV/плейсхолдеры |
+| [SITE-3 / SEC-3](../TODO.md) | 🟢✅ | Фулфилмент реализован: outbox `vip_grants` + RCON + ретраи (RCON по умолчанию off) |
+| [SITE-1](../TODO.md) | 🟢✅ | `redirect:null`/NPE устранён → `pay_error`; ошибки ЮKassa перехватываются |
 | [SITE-4 / SEC-6](../TODO.md) | 🟠 | Нет CSRF-защиты и rate-limit на формах платежей |
-| [SITE-2](../TODO.md) | 🟠 | `pay/return` показывает любой платёж по `pid` без привязки к пользователю (перебор UUID маловероятен, но статус виден) |
+| [SITE-2](../TODO.md) | 🟠 | `pay/return` показывает любой платёж по `pid` без привязки к пользователю (статус виден) |
 | [SITE-5](../TODO.md) | 🟡 | Курсы валют захардкожены, без автообновления |
 | [SITE-6 / SEC-7](../TODO.md) | 🟡 | `spring-boot-devtools` не должен попадать в прод |
-| [SITE-7](../TODO.md) | 🟡 | Нет тестов (только пустой `contextLoads`) |
+| [SITE-7](../TODO.md) | 🟡 | Тесты появились точечно (`FulfillmentServiceTest`, 6 шт.); webhook/PaymentService/FxService не покрыты |
 | [SITE-8](../TODO.md) | 🟡 | `V2__platform.sql` пустая — упорядочить миграции/убрать заглушку |
+| [OPS-5](../TODO.md) | 🟡 | Мусорные файлы в каталоге (`=`, `CACHED`, `resolving`, `naming`, `exporting`, `unpacking`) |
 
 ## Как запустить
 

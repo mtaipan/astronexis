@@ -73,8 +73,9 @@ alembic upgrade head
 cd src && python -m app.main
 ```
 
-> ⚠️ Сейчас бот читает конфиг и из ENV (`core/config.py`), и из `config.yaml` —
-> это рассинхрон (см. BOT-1). До унификации проверь оба файла.
+> Конфигурация читается **только из ENV** (`core/config.py`); прежний `config.yaml` удалён.
+> ⚠️ Учти BOT-8: часть админ-команд сейчас не зарегистрирована в `main.py` и не отвечает
+> (см. [SECURITY.md → SEC-9](SECURITY.md)) — до фикса работают только `/admin /tickets /reply /close`.
 
 ### Docker
 ```bash
@@ -114,10 +115,16 @@ cd AstronexisCore
 
 ## Чистка артефактов
 
-В репозитории много мусора (`*Zone.Identifier`, `.idea/`, `.gradle/`, `.venv/`, `libs/*.jar`).
-См. задачу `OPS-1` в [TODO.md](TODO.md) — рекомендуется почистить и настроить `.gitignore`.
+В репозитории есть мусор (`.idea/`, `.gradle/`, `.venv/`, `libs/*.jar`) и **закоммиченные
+пустышки** — перенаправленный вывод команд, попавший в git (OPS-5). См. `OPS-1`/`OPS-5` в
+[TODO.md](TODO.md).
 
 ```bash
-# удалить Windows-метки скачивания (их ~1700):
+# удалить Windows-метки скачивания (если появятся):
 find . -name '*Zone.Identifier' -delete
+
+# удалить закоммиченные пустышки (OPS-5):
+git rm server-site/= server-site/CACHED server-site/resolving \
+        server-site/naming server-site/exporting server-site/unpacking \
+        TaipanAuthTg/Could TgBot/src/app/schema.sql
 ```

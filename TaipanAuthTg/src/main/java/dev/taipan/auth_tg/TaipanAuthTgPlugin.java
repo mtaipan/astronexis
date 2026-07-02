@@ -48,7 +48,7 @@ public final class TaipanAuthTgPlugin extends JavaPlugin {
             default -> new YamlTrustStore(this);
         };
 
-        this.telegram = new TelegramApi(cfg.telegram().botToken(), cfg.telegram().messagePrefix());
+        this.telegram = new TelegramApi(cfg.telegram().botToken(), cfg.telegram().messagePrefix(), getLogger());
         this.gate = new GateListener(this, cfg, store, trustStore, telegram);
 
         // Bedrock forms

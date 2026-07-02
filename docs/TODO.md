@@ -7,6 +7,81 @@
 
 **Легенда:** `M` = модуль · `S` = серьёзность · файлы кликабельны.
 
+> **⚠️ Новое (независимое ревью).** Ниже, в «Этапе 0-bis», — работающие дыры, которых не было
+> в прошлой версии плана. Их надо закрыть **раньше** всего остального, включая косметику.
+
+---
+
+## 🔴 Этап 0-bis. Работающие дыры (найдено при ревью — чинить первыми) ✅ ЗАКРЫТ
+
+> **Этап закрыт целиком:** AUTH-7, BOT-8, SITE-9, AUTH-8, AUTH-9, BOT-9, OPS-5 — сделаны;
+> на AUTH-7/BOT-8/SITE-9/BOT-9 есть автотесты, все прогнаны и зелёные.
+
+### AUTH-7 · Обход 2FA через истечение TTL кода · `TaipanAuthTg` · 🔴 ✅
+Файл: [GateListener.java](../TaipanAuthTg/src/main/java/dev/taipan/auth_tg/gate/GateListener.java) (`isBlocked`, `isFullyAuthorized`)
+- [x] Истечение кода → состояние «нужен повторный `/login`» (`PendingCode.locked()`),
+      гейт остаётся закрытым; повторный `/login` перевыпускает код (поллер AuthMe смену
+      состояния не видит, поэтому перевыпуск сделан в `onCmd`).
+- [x] Авторизация опёрта на **позитивный** признак: множество `tgVerified` (валидная
+      trust-сессия при входе ИЛИ принятый `/tgcode`), а не отсутствие записи `pending`.
+- [x] Тест: игрок вошёл в AuthMe, код НЕ ввёл, TTL истёк → `mustBeFrozen == true`
+      (`GateListenerTest.expiredCodeKeepsPlayerFrozen`, 6/6 проходят на JDK 21).
+- Детали: [SECURITY.md → SEC-8](SECURITY.md).
+
+### BOT-8 · Половина админ-команд не зарегистрирована · `TgBot` · 🔴 ✅
+Файлы: [main.py](../TgBot/src/app/main.py), [admin.py](../TgBot/src/app/bot/handlers/admin.py)
+- [x] Все 15 недостающих хендлеров зарегистрированы.
+- [x] Собраны списком `ADMIN_COMMANDS = [(name, handler), ...]`, регистрация циклом.
+- [x] Smoke-тест: [tests/test_admin_registration.py](../TgBot/tests/test_admin_registration.py)
+      сверяет команды из текста меню `/admin` с зарегистрированными и все async-хендлеры
+      `admin.py` со списком `ADMIN_COMMANDS`; сборка `Application` вынесена в тестируемую
+      `build_application(cfg, engine)`. Тесты проходят (venv пересоздан, Python 3.12 через uv).
+- Детали: [SECURITY.md → SEC-9](SECURITY.md).
+
+### SITE-9 · Гонка двойной выдачи VIP · `server-site` · 🟠 ✅
+Файлы: [FulfillmentService.java](../server-site/src/main/java/dev/taipan/server_site/service/FulfillmentService.java),
+[VipGrantRepository.java](../server-site/src/main/java/dev/taipan/server_site/repository/VipGrantRepository.java)
+- [x] Атомарный захват `claimForDelivery`: `UPDATE … SET status='DELIVERING', attempts=attempts+1
+      WHERE id=? AND status='PENDING'` с проверкой affected rows до RCON-вызова.
+      Новый статус `DELIVERING` + колонка `claimed_at` (`V4__vip_grants_claim.sql`);
+      зависшие в DELIVERING >10 мин планировщик возвращает в PENDING.
+- [x] Тест: два параллельных `deliver()` одного гранта → ровно одна RCON-команда
+      ([FulfillmentServiceTest](../server-site/src/test/java/dev/taipan/server_site/service/FulfillmentServiceTest.java),
+      6/6, `mvnw test`).
+- Детали: [SECURITY.md → SEC-10](SECURITY.md).
+
+### AUTH-8 · Блокирующий JDBC в тик-потоке сервера · `TaipanAuthTg` · 🟠 ✅
+Файлы: [AuthMePoller.java](../TaipanAuthTg/src/main/java/dev/taipan/auth_tg/auth/AuthMePoller.java),
+[GateListener.onAuthMeLogin](../TaipanAuthTg/src/main/java/dev/taipan/auth_tg/gate/GateListener.java)
+- [x] Обращения к БД (`getChatIdByNick`, `getValid`, `trust.upsert`) вынесены в
+      `runTaskAsynchronously`, результат применяется в основном потоке. Пока async-проверка
+      в полёте, гейт закрыт (безопасно благодаря позитивной модели из AUTH-7).
+- [ ] Пересекается с AUTH-3 (уйти от поллинга к событиям) — можно решить вместе (открыто).
+- Детали: [SECURITY.md → SEC-11](SECURITY.md).
+
+### AUTH-9 · Доставка 2FA-кода без проверки результата · `TaipanAuthTg` · 🟡 ✅
+Файл: [TelegramApi.java](../TaipanAuthTg/src/main/java/dev/taipan/auth_tg/tg/TelegramApi.java)
+- [x] GET fire-and-forget заменён на POST с телом, таймаутами и проверкой HTTP-статуса;
+      при сбое — warning в лог плагина и сообщение игроку («повтори /login позже»).
+      Ретраи (AUTH-6) — отдельно, открыто.
+- Детали: [SECURITY.md → SEC-12](SECURITY.md).
+
+### BOT-9 · Зафиксировать fail-open проверки подписки · `TgBot` · 🟡 ✅
+Файл: [access_service.py](../TgBot/src/app/services/access_service.py)
+- [x] Решено и зафиксировано. Поправка к формулировке: сбой API был fail-**closed**, причём
+      с удалением привязки (временная ошибка Telegram = «не подписан» → `delete_by_tg`).
+      Теперь `is_subscribed` возвращает `True/False/None`; при `None` (сбой API) — отказ в
+      доступе, но привязка сохраняется. Пустой список каналов → доступ (осознанный fail-open,
+      задокументирован в коде). Политика покрыта
+      [tests/test_access_service.py](../TgBot/tests/test_access_service.py).
+- Детали: [SECURITY.md → SEC-13](SECURITY.md).
+
+### OPS-5 · Удалить мусорные файлы из репозитория · `все` · 🟡 ✅
+- [x] Удалены закоммиченные пустышки (все были 0 байт): `server-site/=`, `server-site/CACHED`,
+      `server-site/resolving`, `server-site/naming`, `server-site/exporting`,
+      `server-site/unpacking`, `TaipanAuthTg/Could`.
+- [x] Удалён пустой `TgBot/src/app/schema.sql` (схема живёт в Alembic).
+
 ---
 
 ## 🔴 Этап 0. Срочно (безопасность, до любого деплоя)
@@ -20,7 +95,8 @@
   - [x] `TaipanAuthTg`: `config.yml` → плейсхолдеры (`CHANGE_ME`).
 - [x] Убрать ПДн (ФИО, ИНН) из `application.yml`/`SiteProperties.java`/шаблонов → в ENV (`${PAYEE_*}`).
 - [x] Заполнить `.gitignore` (корневой + правила для `.env`, `config.yaml`, `application-*.properties`).
-- [ ] ⚠️ **(твоё действие)** Если репо публиковалось — почистить историю (`git filter-repo`) и считать секреты утёкшими.
+- [x] ~~Почистить историю git~~ — **не требуется**: история этого репо = 2 коммита, `git log`
+      по `.env`/`config.yaml` пуст, секреты в историю не попадали (поправка к прошлой версии).
 
 ### SEC-1 · Безопасный webhook ЮKassa · `server-site` ✅ (код)
 Файл: [YooKassaWebhookController.java](../server-site/src/main/java/dev/taipan/server_site/controller/YooKassaWebhookController.java), [YooKassaClient.java](../server-site/src/main/java/dev/taipan/server_site/yookassa/YooKassaClient.java)
@@ -60,13 +136,15 @@
 - [x] Исключения `YooKassaClient`/сервиса перехватываются → дружелюбное сообщение.
 - [x] Валидация суммы (1…1 000 000 ₽) в `PaymentService`; валюта валидируется `FxService` (белый список).
 
-### SEC-4 / AUTH-1 · Полная заморозка неавторизованного игрока · `TaipanAuthTg` ✅ (код)
+### SEC-4 / AUTH-1 · Полная заморозка неавторизованного игрока · `TaipanAuthTg` ⚠️ (частично)
 Файл: [GateListener.java](../TaipanAuthTg/src/main/java/dev/taipan/auth_tg/gate/GateListener.java)
 - [x] Добавлены обработчики (отмена при `mustBeFrozen`): чат (`AsyncPlayerChatEvent`),
       `PlayerInteractEvent`, `BlockBreakEvent`, `BlockPlaceEvent`, `PlayerDropItemEvent`,
       `InventoryClickEvent`, `InventoryOpenEvent`, `EntityPickupItemEvent`.
 - [x] Разрешённые команды (`/login /register /auth /tgcode`) по-прежнему проходят (логика `onCmd` не тронута).
-- [ ] ⚠️ Сборка не проверена в этом окружении (нет JDK ≤ 21 для Gradle, см. OPS-4). Проверено ревью.
+- [x] ~~Заморозка перекрывается дырой AUTH-7~~ — AUTH-7 закрыт: `mustBeFrozen` держится на
+      позитивном признаке авторизации, истечение TTL заморозку не снимает (есть тест).
+- [x] Сборка проверена: Gradle на JDK 21 (см. OPS-4), `BUILD SUCCESSFUL` + 6/6 тестов гейта.
 
 ### SEC-5 / AUTH-2 · Лимит попыток 2FA · `TaipanAuthTg` ✅ (код)
 - [x] Счётчик неудачных `/tgcode` (`codeAttempts`); после `MAX_CODE_ATTEMPTS=5` код инвалидируется
@@ -88,10 +166,22 @@
 - [ ] Убрать дубль значений (admins, token, пути).
 
 ### ARCH-1 · Единый источник правды для `bindings` · `TgBot` + `TaipanAuthTg`
-- [ ] Зафиксировать: привязки живут в Postgres (а не в `bindings.yml`).
-- [ ] Привести `TgBot/config.yaml` (путь к `bindings.yml`) и `TaipanAuthTg` `storage.type`
-      к одной БД/схеме; описать связь в [ARCHITECTURE.md](ARCHITECTURE.md).
-- [ ] Миграция существующих YAML-привязок в Postgres (если есть прод-данные).
+- [ ] Зафиксировать: привязки живут в Postgres (а не в `bindings.yml`). Бот уже пишет только в БД.
+- [ ] Привести `TaipanAuthTg` (`storage.type=postgres`) и `TgBot` к одной БД/схеме; описать
+      связь в [ARCHITECTURE.md](ARCHITECTURE.md). Дальше — убрать прямой доступ плагина к
+      таблице бота, см. **ARCH-4**.
+- [ ] Миграция существующих YAML-привязок в Postgres (если есть прод-данные на YAML-сторе плагина).
+
+### ARCH-4 · Убрать прямой доступ к чужим таблицам · `все`
+Файлы: [PgBindingsStore.java](../TaipanAuthTg/src/main/java/dev/taipan/auth_tg/store/PgBindingsStore.java),
+[FulfillmentService.java](../server-site/src/main/java/dev/taipan/server_site/service/FulfillmentService.java)
+- [ ] `TaipanAuthTg` читает таблицу `bindings` сырым SQL, а её схему определяют миграции
+      `TgBot`. Любое изменение схемы ботом молча ломает плагин. Ввести контракт: маленький
+      внутренний API бота (`GET /bindings?nick=`), плагин ходит в него async + кэш.
+- [ ] Выдача VIP: сайт пишет `vip_grants` в **свою** БД, а плагин-консьюмер (которого нет)
+      должен читать её же — сейчас связь только через RCON. Определить единый канал доставки
+      (внутренний API игрового кластера ИЛИ общий брокер), а не «плагин почитает чужую таблицу».
+- [ ] Задокументировать контракт в [ARCHITECTURE.md](ARCHITECTURE.md) (версия схемы, поля, гарантии).
 
 ### BOT-3 · Гарантировать guard на всех хендлерах · `TgBot` ✅ — см. [ADR-5](DECISIONS.md)
 - [x] Добавлен декоратор `@require_access` ([guard.py](../TgBot/src/app/bot/middlewares/guard.py)).
@@ -118,6 +208,7 @@
 - [x] Удалить `*Zone.Identifier` (1686 файлов) и `.DS_Store`.
 - [x] Настроить корневой `.gitignore` (покрывает `.idea/`, `.gradle/`, `.venv/`, `build/`, `target/`).
 - [ ] При инициализации git убедиться, что `.idea/`, `.gradle/`, `.venv/`, `libs/*.jar` не закоммичены.
+- [ ] Удалить мусорные закоммиченные файлы — вынесено в отдельную задачу **OPS-5** (см. Этап 0-bis).
 
 ### OPS-2 · Аудит логирования · `все`
 - [ ] Убедиться, что токены/коды/креды/ответы ЮKassa не попадают в логи.
@@ -150,10 +241,11 @@
 ### AUTH-4 · Убрать заглушку · `TaipanAuthTg` ✅
 - [x] Пустой `AuthMeHook.java` удалён (ссылок не было).
 
-### OPS-4 · Сборка плагинов требует JDK ≤ 21 · `плагины`
-- [ ] В этом окружении стоит только JDK 26 — Gradle 8.8 на ней не стартует. Для сборки
-      `TaipanAuthTg`/`AstronexisCore` нужен JDK 17–21 (toolchain в build.gradle = 21).
-      Изменения в плагинах пока проверены ревью, не компиляцией.
+### OPS-4 · Сборка плагинов требует JDK ≤ 21 · `плагины` ✅
+- [x] Установлен OpenJDK 21 (`brew install openjdk@21`, лежит в `/opt/homebrew/opt/openjdk@21`).
+      Gradle-сборка работает: `JAVA_HOME=/opt/homebrew/opt/openjdk@21 sh gradlew build`.
+      Оба плагина собираются (`TaipanAuthTg-0.0.1.jar`, `AstronexisCore-0.0.1.jar`),
+      тесты `TaipanAuthTg` гоняются Gradle'ом.
 
 ### AUTH-5 · Рефактор GateListener · `TaipanAuthTg`
 - [ ] Разнести состояние (pending/trust), обработку событий и логику заморозки по классам.
@@ -176,10 +268,13 @@
 
 ## Рекомендуемый порядок выполнения
 
-1. **SEC-2** (отозвать токен, вынести секреты) — пока не сделано, остальное вторично.
-2. **SEC-1** + **SEC-3/SITE-3** — платежи: подтверждение + выдача товара.
-3. **BOT-2**, **SITE-1**, **SEC-4/AUTH-1** — явные функциональные баги/дыры.
-4. **ARCH-1**, **ARCH-2**, **BOT-1** — навести порядок в источниках правды и дублях.
-5. Остальное из Этапа 1, затем Этап 2.
+0. ✅ **AUTH-7**, **BOT-8**, **SITE-9**, **AUTH-8** — закрыты (код + тесты на первые три).
+   Бонусом: AUTH-9, BOT-9, OPS-4, OPS-5.
+1. **SEC-2** (отозвать токен, сменить пароли) — ручное действие, не откладывать. **Всё ещё за тобой.**
+2. ✅ Тесты на AUTH-7 / BOT-8 / SITE-9 есть (GateListenerTest, test_admin_registration,
+   FulfillmentServiceTest, test_access_service). Дальше — остальное покрытие (TESTS)
+   и **CI**, который гоняет всё это на каждый коммит.
+3. **ARCH-1**, **ARCH-4**, **BOT-1** — навести порядок в источниках правды и интеграции.
+4. Остальное из Этапа 2. Плюс реальный сквозной прогон «оплата → грант → выдача» (см. STATUS).
 
 > Прогресс удобно отмечать прямо здесь. Когда закрыт целый этап — отметь это в начале раздела.

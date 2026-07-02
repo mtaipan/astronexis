@@ -17,8 +17,8 @@ TaipanAuthTg/src/main/java/dev/taipan/auth_tg/
 │   ├── PluginConfig.java           # маппинг config.yml
 │   ├── SecurityConfig, TelegramConfig, PostgresConfig
 ├── auth/
-│   ├── AuthMePoller.java           # поллинг AuthMeApi.isAuthenticated() раз в секунду
-│   └── AuthMeHook.java             # (заглушка)
+│   └── AuthMePoller.java           # поллинг AuthMeApi.isAuthenticated() раз в секунду
+│                                   #   (SEC-11 закрыт: БД-вызовы теперь async)
 ├── gate/GateListener.java          # «заморозка» неавторизованных + приём кода
 ├── bedrock/
 │   ├── BedrockAuthForms.java       # формы Floodgate
@@ -61,11 +61,18 @@ postgres: { host, port, database, user, password, poolSize, cacheTtlSeconds }
    - валидная trust-сессия (совпал fingerprint) → пускает;
    - нет привязки ник↔chatId → блок с инструкцией привязать TG;
    - иначе генерирует `code6()`, шлёт в Telegram, держит игрока «замороженным».
-3. Игрок вводит `/tgcode <код>` → `tryAcceptCode`: при совпадении создаёт trust-сессию
-   (fingerprint + `trustTtlSeconds`) и размораживает.
+3. Игрок вводит `/tgcode <код>` → `tryAcceptCode`: при совпадении добавляет игрока в
+   `tgVerified`, создаёт trust-сессию (fingerprint + `trustTtlSeconds`) и размораживает.
 
-«Заморозка» (`mustBeFrozen`) отменяет перемещение, урон, голод, возгорание и все команды,
-кроме `/login /register /auth /tgcode`.
+«Заморозка» (`mustBeFrozen`) отменяет перемещение, урон, голод, возгорание, чат,
+интеракции, блоки, дроп/инвентарь/подбор и все команды, кроме `/login /register /auth /tgcode`.
+
+> **✅ Исправлено (SEC-8 / AUTH-7).** Раньше истечение TTL кода удаляло `pending` и
+> размораживало игрока **без ввода кода** — второй фактор обходился ожиданием. Теперь
+> авторизация держится на позитивном признаке (`tgVerified`: валидная trust-сессия ИЛИ
+> принятый код); истёкший код переходит в `locked`, заморозка сохраняется, новый код
+> перевыпускается по `/login`. Регрессия покрыта `GateListenerTest`.
+> БД-вызовы гейта ушли из тик-потока в async (AUTH-8), доставка кода проверяется (AUTH-9).
 
 ## 🟢 Сильные стороны
 
@@ -79,16 +86,19 @@ postgres: { host, port, database, user, password, poolSize, cacheTtlSeconds }
 
 | ID | Severity | Проблема |
 |---|---|---|
-| [SEC-4 / AUTH-1](../TODO.md) | 🟠 | Заморозка не покрывает чат, взаимодействие с миром/блоками, drop/inventory |
-| [SEC-5 / AUTH-2](../TODO.md) | 🟠 | Нет лимита попыток и лок-аута при вводе `/tgcode` |
-| [AUTH-3](../TODO.md) | 🟠 | Авторизация на поллинге (1с) вместо событий AuthMe → задержка + нагрузка. Рассмотреть `LoginEvent`/`LogoutEvent` AuthMe |
-| [ARCH-1](../TODO.md) | 🟠 | Источник правды `bindings` общий с TgBot — синхронизировать схему/подключение |
-| [SEC-2](../TODO.md) | 🔴 | Креды БД (`tgbot/tgbot`) и плейсхолдер токена в `config.yml` |
-| [AUTH-4](../TODO.md) | 🟡 | `AuthMeHook.java` — пустая заглушка, удалить или реализовать |
-| [AUTH-5](../TODO.md) | 🟡 | `GateListener` ~310 строк смешивает состояние, события и заморозку — разнести |
-| [AUTH-6](../TODO.md) | 🟡 | Нет тестов; код подтверждается только Telegram-доставкой (нет фолбэка при сбое TG) |
+| [AUTH-7 / SEC-8](../TODO.md) | 🔴✅ | **Обход 2FA закрыт:** гейт на позитивном признаке `tgVerified`; истечение TTL держит заморозку. Тест: `GateListenerTest` |
+| [AUTH-8 / SEC-11](../TODO.md) | 🟠✅ | JDBC ушёл из тик-потока: `getValid`/`getChatIdByNick`/`upsert` в `runTaskAsynchronously`, применение в main thread |
+| [AUTH-9 / SEC-12](../TODO.md) | 🟡✅ | POST + проверка статуса; при сбое — лог + сообщение игроку (ретраи AUTH-6 — открыто) |
+| [SEC-4 / AUTH-1](../TODO.md) | 🟢✅ | Заморозка расширена на чат/мир/инвентарь; оговорка про AUTH-7 снята |
+| [SEC-5 / AUTH-2](../TODO.md) | 🟢✅ | Лимит 5 попыток `/tgcode`; сценарий «пережидание» закрыт AUTH-7. Оба покрыты тестами |
+| [AUTH-3](../TODO.md) | 🟠 | Авторизация на поллинге (1с) вместо событий AuthMe → задержка + нагрузка. Рассмотреть `LoginEvent`/`LogoutEvent` |
+| [ARCH-1 / ARCH-4](../TODO.md) | 🟠 | Плагин читает таблицу `bindings` сырым SQL, схему которой владеет TgBot — нет контракта |
+| [SEC-2](../TODO.md) | 🟢✅ | Креды БД и токен в `config.yml` → плейсхолдеры (`CHANGE_ME`); ручное: сменить пароли |
+| [AUTH-5](../TODO.md) | 🟡 | `GateListener` смешивает состояние, события и заморозку — разнести (см. [ADR-10](../DECISIONS.md)) |
+| [AUTH-6](../TODO.md) | 🟡 | Ретраев доставки кода нет (сбой уже логируется и сообщается игроку — AUTH-9); тесты гейта есть (`GateListenerTest`), остальное не покрыто |
 
 ## Как собрать
 
-`cd TaipanAuthTg && ./gradlew jar` → jar в `build/libs/`. Требует установленного AuthMe
-на сервере (форк лежит в `libs/AuthMe-5.7.0-FORK-Universal.jar`).
+`cd TaipanAuthTg && JAVA_HOME=/opt/homebrew/opt/openjdk@21 sh gradlew build` → jar в
+`build/libs/`, тесты гоняются автоматически (Gradle требует JDK ≤ 21, см. OPS-4 в TODO).
+Требует установленного AuthMe на сервере (форк лежит в `libs/AuthMe-5.7.0-FORK-Universal.jar`).

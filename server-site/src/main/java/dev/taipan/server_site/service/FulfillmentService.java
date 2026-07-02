@@ -56,6 +56,13 @@ public class FulfillmentService {
         if (!rconProps.isEnabled()) {
             return 0; // выдача идёт «другим способом» (плагин/вручную) — очередь не трогаем
         }
+
+        // Гранты, зависшие в DELIVERING после падения процесса, возвращаем в очередь (SITE-9).
+        int requeued = grants.requeueStaleDelivering(OffsetDateTime.now().minusMinutes(10));
+        if (requeued > 0) {
+            log.warn("Возвращено в очередь зависших грантов (DELIVERING > 10 мин): {}", requeued);
+        }
+
         List<VipGrant> pending = grants.findTop50ByStatusAndAttemptsLessThanOrderByCreatedAtAsc(
                 GrantStatus.PENDING, rconProps.getMaxAttempts());
 
@@ -68,13 +75,26 @@ public class FulfillmentService {
         return delivered;
     }
 
-    private boolean deliver(VipGrant g) {
-        if (g.getStatus() != GrantStatus.PENDING) {
+    private boolean deliver(VipGrant candidate) {
+        if (candidate.getStatus() != GrantStatus.PENDING) {
             return false;
         }
         if (!rconProps.isEnabled()) {
             // RCON выключен: оставляем в очереди для плагина/ручной выдачи.
-            log.info("RCON disabled; VIP grant {} остаётся в очереди (nick={})", g.getId(), g.getNick());
+            log.info("RCON disabled; VIP grant {} остаётся в очереди (nick={})",
+                    candidate.getId(), candidate.getNick());
+            return false;
+        }
+
+        // SITE-9: атомарный захват (PENDING → DELIVERING, attempts+1) до RCON-вызова —
+        // webhook и планировщик не смогут выдать один грант дважды.
+        if (grants.claimForDelivery(candidate.getId(), OffsetDateTime.now()) == 0) {
+            return false; // грант уже захвачен параллельным доставщиком
+        }
+
+        // После UPDATE сущность в памяти устарела — перечитываем актуальное состояние.
+        VipGrant g = grants.findById(candidate.getId()).orElse(null);
+        if (g == null) {
             return false;
         }
 
@@ -83,7 +103,6 @@ public class FulfillmentService {
                 .replace("%days%", String.valueOf(g.getDurationDays()))
                 .replace("%group%", vipGroup);
 
-        g.setAttempts(g.getAttempts() + 1);
         try {
             String resp = rcon.execute(command);
             g.setStatus(GrantStatus.DELIVERED);
@@ -99,6 +118,8 @@ public class FulfillmentService {
                 log.error("VIP delivery FAILED (исчерпаны попытки) grant={} nick={}: {}",
                         g.getId(), g.getNick(), e.getMessage());
             } else {
+                // Возвращаем в очередь — следующий прогон планировщика попробует ещё раз.
+                g.setStatus(GrantStatus.PENDING);
                 log.warn("VIP delivery retry {} grant={} nick={}: {}",
                         g.getAttempts(), g.getId(), g.getNick(), e.getMessage());
             }
